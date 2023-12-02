@@ -3,7 +3,7 @@ import numpy as np
 from datetime import timedelta
 from sklearn.model_selection import train_test_split
 from statsmodels.tsa.seasonal import STL
-
+from sklearn.preprocessing import StandardScaler
 
 def find_outliers(col, col_name, df_name, threshold=3, period=None, plot=True):
     stl = STL(col, period=period)
@@ -38,6 +38,7 @@ def load_cleaned_data(remove_outliers=True, validation_split=0.2):
         "data/DailyDelhiClimateTrain.csv", index_col="date", parse_dates=True
     )
 
+
     # handling outliers in meanpressure
     for index in df_train[df_train["meanpressure"] > 1070].index:
         prev_value = df_train.loc[index - 1 * timedelta(1), "meanpressure"]
@@ -71,5 +72,15 @@ def load_cleaned_data(remove_outliers=True, validation_split=0.2):
     num_validation_rows = int(validation_split * len(df_train))
     df_validation = df_train.head(num_validation_rows)
     df_train = df_train.iloc[num_validation_rows:]
+
+    
+    mu = df_train.mean()
+    std = df_train.std()
+
+    # mu = mu.drop("date")
+    # std = std.drop("date")
+
+    df_train = (df_train - mu) / std
+    df_test = (df_test - mu) / std
 
     return df_train, df_test, df_validation
