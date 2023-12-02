@@ -1,0 +1,2 @@
+Mean Square Error: 0.24116282165050507
+ Root Mean Squared Error: 0.4910833239555359
