@@ -160,3 +160,6 @@ cython_debug/
 #.idea/
 lightning_logs
 lstm-logs
+lstm-report
+*.yaml
+*.tfevents.*

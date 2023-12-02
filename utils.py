@@ -82,5 +82,6 @@ def load_cleaned_data(remove_outliers=True, validation_split=0.2):
 
     df_train = (df_train - mu) / std
     df_test = (df_test - mu) / std
+    df_validation = (df_validation - mu) / std
 
-    return df_train, df_test, df_validation
+    return df_train, df_test, df_validation, mu, std
