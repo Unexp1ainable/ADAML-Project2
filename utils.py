@@ -4,6 +4,7 @@ from datetime import timedelta
 from sklearn.model_selection import train_test_split
 from statsmodels.tsa.seasonal import STL
 from sklearn.preprocessing import StandardScaler
+import torch
 
 def find_outliers(col, col_name, df_name, threshold=3, period=None, plot=True):
     stl = STL(col, period=period)
@@ -85,3 +86,47 @@ def load_cleaned_data(remove_outliers=True, validation_split=0.2):
     df_validation = (df_validation - mu) / std
 
     return df_train, df_test, df_validation, mu, std
+
+
+def create_sequences(x, y, seq_length):
+    xs = []
+    ys = []
+    for i in range(len(x) - seq_length - 1):
+        _x = x[i : i + seq_length]
+        _y = y[i+seq_length]
+        xs.append(_x)
+        ys.append(_y)
+    return np.array(xs), np.array(ys)
+
+
+class ClimateDataset(torch.utils.data.Dataset):
+    def __init__(self, df, seq_length) -> None:
+        super().__init__()
+        self.df = df
+        self.x = df.iloc[:, 1:].values
+        self.y = df.iloc[:, 0].values
+        self.sequences, self.targets = create_sequences(self.x, self.y, seq_length)
+
+    def __len__(self):
+        return len(self.sequences)
+
+    def __getitem__(self, index):
+        x = self.sequences[index]
+        y = self.targets[index]
+        return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.float32)
+
+
+def predict(model, dataloader):
+    preds = []
+    true = []
+    it = iter(dataloader)
+
+    while True:
+        try:
+            x, y = next(it)
+            pred = model.forward(x)
+            preds.append(pred.detach().numpy())
+            true.append(y.detach().numpy())
+        except StopIteration:
+            break
+    return np.array(preds), np.array(true)
