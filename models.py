@@ -140,7 +140,7 @@ class RNNModel(lightning.LightningModule):
 
 
 class TransformerModel(lightning.LightningModule):
-    START_TOKEN = (-1,-1,-1,-1)
+    START_TOKEN = (0.,0.,0.,0.)
 
     def __init__(self, input_size, learning_rate, num_encoder_layers, num_decoder_layers, dim_feedforward, nhead, seq_len):
         super().__init__()
@@ -151,7 +151,7 @@ class TransformerModel(lightning.LightningModule):
 
     def forward(self, src, tgt):
         tgt_len = tgt.shape[1]
-        tgt_mask = torch.triu(torch.ones(tgt_len, tgt_len), diagonal=1).bool().to(tgt.device)
+        tgt_mask = torch.triu(torch.ones(tgt_len, tgt_len), diagonal=1).bool().to(src.device)
         out = self.transformer(src=src, tgt=tgt, tgt_mask=tgt_mask, tgt_is_causal=True)
         return out
 
@@ -198,7 +198,7 @@ class TransformerModel(lightning.LightningModule):
 
     def autoregressive_predict(self, x, target_length):
         preds = []
-        tgt = [self.START_TOKEN]
+        tgt = torch.tensor([self.START_TOKEN]).unsqueeze(0)
         self.eval()
 
         for _ in range(target_length):
