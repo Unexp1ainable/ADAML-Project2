@@ -88,22 +88,30 @@ def load_cleaned_data(remove_outliers=True, validation_split=0.2):
     return df_train, df_test, df_validation, mu, std
 
 
-def create_sequences(data, seq_length, target_length):
+def create_sequences(data, seq_length, target_length, start_token):
     xs = []
     ys = []
+
     for i in range(len(data) - seq_length - target_length - 1):
         _x = data[i : i + seq_length]
-        _y = data[i+seq_length:i+seq_length+target_length]
+        _y = []
+        if start_token is not None:
+            st =np.array(start_token).reshape(1, -1)
+            _y = np.concatenate([st, data[i+seq_length:i+seq_length+target_length]])
+        else:
+            _y = data[i + seq_length : i + seq_length + target_length]
+        
         xs.append(_x)
         ys.append(_y)
     return np.array(xs), np.array(ys)
 
 
+
 class ClimateDataset(torch.utils.data.Dataset):
-    def __init__(self, df, seq_length, target_length = 1) -> None:
+    def __init__(self, df, seq_length, target_length = 1, start_token = None) -> None:
         super().__init__()
         self.df = df
-        self.sequences, self.targets = create_sequences(self.df.values, seq_length, target_length)
+        self.sequences, self.targets = create_sequences(self.df.values, seq_length, target_length, start_token)
 
     def __len__(self):
         return len(self.sequences)

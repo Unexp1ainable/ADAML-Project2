@@ -136,3 +136,75 @@ class RNNModel(lightning.LightningModule):
             x = torch.cat((x[:, 1:, :], pred.unsqueeze(0)), dim=1)
 
         return preds
+
+
+
+class TransformerModel(lightning.LightningModule):
+    START_TOKEN = (-1,-1,-1,-1)
+
+    def __init__(self, input_size, learning_rate, num_encoder_layers, num_decoder_layers, dim_feedforward, nhead, seq_len):
+        super().__init__()
+        self.lr = learning_rate
+        self.transformer = nn.Transformer(d_model = input_size, batch_first=True, num_encoder_layers=num_encoder_layers, num_decoder_layers=num_decoder_layers, dim_feedforward=dim_feedforward, nhead=nhead)
+        self.criterion = nn.MSELoss()
+        self.save_hyperparameters()
+
+    def forward(self, src, tgt):
+        tgt_len = tgt.shape[1]
+        tgt_mask = torch.triu(torch.ones(tgt_len, tgt_len), diagonal=1).bool().to(tgt.device)
+        out = self.transformer(src=src, tgt=tgt, tgt_mask=tgt_mask, tgt_is_causal=True)
+        return out
+
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        out = self(x, y)
+        out = out.reshape(y.shape)
+        loss = self.criterion(out, y)
+        self.log(
+            "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
+        )
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        out = self(x, y)
+        out = out.reshape(y.shape)
+        loss = self.criterion(out, y)
+        self.log(
+            "val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
+        )
+        return loss
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        return optimizer
+
+    def predict(self, dataloader):
+        preds = []
+        true = []
+        it = iter(dataloader)
+
+        self.eval()
+
+        while True:
+            try:
+                x, y = next(it)
+                pred = self.forward(x, y)
+                preds.append(pred.detach().numpy())
+                true.append(y.detach().numpy())
+            except StopIteration:
+                break
+        return np.array(preds), np.array(true)
+
+    def autoregressive_predict(self, x, target_length):
+        preds = []
+        tgt = [self.START_TOKEN]
+        self.eval()
+
+        for _ in range(target_length):
+            pred = self.forward(x, tgt)
+            tgt = pred
+            preds.append(pred.detach().numpy())
+            # x = torch.cat((x[:, 1:, :], pred.unsqueeze(0)), dim=1)
+
+        return preds
