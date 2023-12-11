@@ -2,7 +2,7 @@ import lightning
 import torch
 import torch.nn as nn
 import numpy as np
-
+import math
 
 class LSTMModel(lightning.LightningModule):
     def __init__(self, input_size, output_size, hidden_size, num_layers, learning_rate):
@@ -139,20 +139,44 @@ class RNNModel(lightning.LightningModule):
 
 
 
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(max_len, 1, d_model)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Arguments:
+            x: Tensor, shape ``[seq_len, batch_size, embedding_dim]``
+        """
+        x = x + self.pe[:x.size(0)]
+        return self.dropout(x)
+
 class TransformerModel(lightning.LightningModule):
     START_TOKEN = (0.,0.,0.,0.)
 
     def __init__(self, input_size, learning_rate, num_encoder_layers, num_decoder_layers, dim_feedforward, nhead, seq_len):
         super().__init__()
         self.lr = learning_rate
+        self.pos_encoder = PositionalEncoding(input_size, dropout=0.1)
         self.transformer = nn.Transformer(d_model = input_size, batch_first=True, num_encoder_layers=num_encoder_layers, num_decoder_layers=num_decoder_layers, dim_feedforward=dim_feedforward, nhead=nhead)
         self.criterion = nn.MSELoss()
         self.save_hyperparameters()
 
     def forward(self, src, tgt):
         tgt_len = tgt.shape[1]
-        tgt_mask = torch.triu(torch.ones(tgt_len, tgt_len), diagonal=1).bool().to(src.device)
-        out = self.transformer(src=src, tgt=tgt, tgt_mask=tgt_mask, tgt_is_causal=True)
+        tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt_len, device=src.device)
+
+        out = self.pos_encoder(src)
+        out = self.transformer(src=out, tgt=tgt, tgt_mask=tgt_mask, tgt_is_causal=True)
         return out
 
     def training_step(self, batch, batch_idx):
@@ -196,15 +220,13 @@ class TransformerModel(lightning.LightningModule):
                 break
         return np.array(preds), np.array(true)
 
-    def autoregressive_predict(self, x, target_length):
+    def autoregressive_predict(self, x, tgt, target_length):
         preds = []
-        tgt = torch.tensor([self.START_TOKEN]).unsqueeze(0)
         self.eval()
 
         for _ in range(target_length):
             pred = self.forward(x, tgt)
-            tgt = pred
             preds.append(pred.detach().numpy())
-            # x = torch.cat((x[:, 1:, :], pred.unsqueeze(0)), dim=1)
+            tgt = torch.cat((tgt, pred[:,-1,:].unsqueeze(1)), dim=1)
 
-        return preds
+        return pred[-1].detach().numpy()
