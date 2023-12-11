@@ -1,0 +1,7 @@
+dim_feedforward: 64
+input_size: 4
+learning_rate: 0.001
+nhead: 1
+num_decoder_layers: 3
+num_encoder_layers: 3
+seq_len: 12
